@@ -1,0 +1,48 @@
+<!--
+
+Modified By, Bundit Boonyarit
+Scalable Data Systems Lab (SCADS)
+School of Information Science and Technology (IST),
+Vidyasirimedhi Institute of Science and Technology (VISTEC)
+2018
+
+-->
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	
+	<meta charset="utf-8">
+	<title>PBS Pro Script Generator @Galaxy Cluster</title>
+	<link rel="stylesheet" type="text/css" href="VISTECJobScriptGenerator.css">
+	<script type="text/javascript" src="VISTECJobScriptGenerator.js"></script>
+</head>
+
+<body>
+<div id="VISTECJobScriptGenerator"></div>
+
+<script type="text/javascript">
+	/* The latest version of the Brigham Young University Script Generator is available at http://github.com/BYUHPC/BYUJobScriptGenerator */
+
+	var vistec_script_gen = new VISTECScriptGen(document.getElementById("VISTECJobScriptGenerator"));
+	
+	/* Dynamically generate this using PHP or whatever. You may also statically configure it */
+	
+	vistec_script_gen.settings.queue = {
+		names : [
+			"qcpu", "qgpu"
+		],
+		show : true
+	};
+	/* End of stuff */
+	
+	vistec_script_gen.init();
+</script>
+
+<!-- Attribution is not required. Feel free to remove this. -->
+<div style="font-size: 10pt;">Modified By: Bundit Boonyarit <br> The latest version of the <span style="font-style: italic;">Brigham Young University Job Script Generator</span> is available on <a href="http://github.com/BYUHPC/BYUJobScriptGenerator">github</a>.</div>
+
+</div>
+</body>
+</html>
