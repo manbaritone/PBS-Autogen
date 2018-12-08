@@ -38,7 +38,7 @@ TODO:
 
 /*****************************************************************\
 
-Modified By, Bundit Boonyarit
+Modified By, Bundit Boonyarit <bundit.b_s18@vistec.ac.th>
 Scalable Data Systems Lab (SCADS)
 School of Information Science and Technology (IST),
 Vidyasirimedhi Institute of Science and Technology (VISTEC)
