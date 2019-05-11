@@ -1,4 +1,6 @@
-**Slurm Script Generator**
+![Slurm Banner](https://repository-images.githubusercontent.com/160963463/f2864600-7481-11e9-8334-5851df37d824)
+
+## Slurm Script Generator
 
 This script is provided for Galaxy Cluster @Scalable Data Systems Lab (SCADS), School of Information Science and Technology (IST), Vidyasirimedhi Institute of Science and Technology (VISTEC).
 
