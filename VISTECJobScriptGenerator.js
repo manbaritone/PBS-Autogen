@@ -172,7 +172,7 @@ VISTECScriptGen.prototype.createForm = function(doc) {
 	form = document.createElement("form");
 	var table = document.createElement("table");
 	form.appendChild(table);
-	table.appendChild(newHeaderRow("PBS Pro Script Generator @Galaxy Cluster"));
+	table.appendChild(newHeaderRow("Slurm Script Generator @Galaxy Cluster"));
 
 	this.inputs.node = this.newInput({value:1});
 	this.inputs.num_cores = this.newInput({value:1});
@@ -180,10 +180,6 @@ VISTECScriptGen.prototype.createForm = function(doc) {
 	this.inputs.mem_per_core = this.newInput({value:0});
 	this.inputs.mem_units = this.newSelect({options:[["GB", "GB"],["MB", "MB"]]});
 	this.inputs.job_name = this.newInput({});
-	this.inputs.email_begin = this.newCheckbox({checked:0});
-	this.inputs.email_end = this.newCheckbox({checked:0});
-	this.inputs.email_abort = this.newCheckbox({checked:0});
-	this.inputs.email_address = this.newInput({value:this.settings.defaults.email_address, size:30});
 	this.inputs.mpirun_true = this.newCheckbox({checked:0});
 	this.inputs.mpirun_false = this.newCheckbox({checked:0});
 	
@@ -227,22 +223,10 @@ VISTECScriptGen.prototype.createForm = function(doc) {
 			)
 	);		
 	table.appendChild(this.returnNewRow("vistec_sg_row_onenode", "Number of node(s): ", this.inputs.node));
-	table.appendChild(this.returnNewRow("vistec_sg_row_numcores", "Number of processor cores <b>across all nodes</b>: ", this.inputs.num_cores));
+	table.appendChild(this.returnNewRow("vistec_sg_row_numcores", "Number of processor cores <b>across per node</b>: ", this.inputs.num_cores));
 	table.appendChild(this.returnNewRow("vistec_sg_row_numgpus", "Number of GPUs: ", this.inputs.num_gpus));
-	table.appendChild(this.returnNewRow("vistec_sg_row_mempercore", "Memory per processor core: ", this.newSpan(null, this.inputs.mem_per_core, this.inputs.mem_units)));
+	table.appendChild(this.returnNewRow("vistec_sg_row_mempercore", "Memory per node: ", this.newSpan(null, this.inputs.mem_per_core, this.inputs.mem_units)));
 	table.appendChild(this.returnNewRow("vistec_sg_row_jobname", "Job name: ", this.inputs.job_name));
-	table.appendChild(this.returnNewRow("vistec_sg_row_emailevents", "Receive email for job events: ", 
-				this.newSpan(	null,
-						this.inputs.email_begin,
-						" Begin ",
-						this.inputs.email_end,
-						" End ",
-						this.inputs.email_abort,
-						" Abort"
-					    )
-			 )
-	);
-	table.appendChild(this.returnNewRow("vistec_sg_row_emailaddress", "Email address: <br> [Message will be located at SPAM or JUNK folder]", this.inputs.email_address));
 	
 	return form;
 
@@ -272,11 +256,6 @@ VISTECScriptGen.prototype.retrieveValues = function() {
 	this.values.nodes = this.inputs.node;
 	this.values.gpus = this.inputs.num_gpus.value;
 	this.values.job_name = this.inputs.job_name.value;
-	this.values.sendemail = {};
-	this.values.sendemail.begin = this.inputs.email_begin.checked;
-	this.values.sendemail.end = this.inputs.email_end.checked;
-	this.values.sendemail.abort = this.inputs.email_abort.checked;
-	this.values.email_address = this.inputs.email_address.value;
 	this.values.mpirun_true = this.inputs.mpirun_true.checked;
 	this.values.mpirun_false = this.inputs.mpirun_false.checked;
 	
@@ -290,21 +269,21 @@ VISTECScriptGen.prototype.retrieveValues = function() {
 	if(this.values.MB_per_core > 32*1024)
 		jobnotes.push("Are you crazy? That is way too much RAM!");
 	if(this.values.MB_per_core > 32*1024 && this.values.queue.indexOf("qcpu") > -1)
-		jobnotes.push("<B>qcpu</B> queue nodes have 32 GB of RAM. You want more than that per core.");
+		jobnotes.push("<B>qcpu</B> queue, nodes have 32 GB of RAM. You want more than that per core.");
 	if(this.values.MB_per_core > 32*1024 && this.values.queue.indexOf("qgpu") > -1)
-		jobnotes.push("<B>qgpu</B> queue nodes have 32 GB of RAM. You want more than that per core.");
+		jobnotes.push("<B>qgpu</B> queue, nodes have 32 GB of RAM. You want more than that per core.");
 	if(this.values.nodes > 3 && this.values.queue.indexOf("qcpu") > -1)
-		jobnotes.push("<B>qcpu</B> queue nodes have maximum available 3 nodes per job.");
-	if(this.values.nodes > 1 && this.values.queue.indexOf("qgpu") > -1)
-		jobnotes.push("<B>qgpu</B> queue nodes have maximum available 1 nodes per job.");
-	if(this.values.gpus > 2 && this.values.queue.indexOf("qgpu") > -1)
-		jobnotes.push("<B>qgpu</B> queue gpu have maximum available 2 gpu per job.");
+		jobnotes.push("<B>qcpu</B> queue, vnodes have maximum available 4 nodes per job.");
+	if(this.values.nodes > 3 && this.values.queue.indexOf("qgpu") > -1)
+		jobnotes.push("<B>qgpu</B> queue, vnodes have maximum available 6 nodes per job.");
+	if(this.values.gpus > 5 && this.values.queue.indexOf("qgpu") > -1)
+		jobnotes.push("<B>qgpu</B> queue, gpus have maximum available 6 gpu per job.");
+	if(this.values.num_cores > 12 && this.values.queue.indexOf("qcpu") > -1)
+		jobnotes.push("<B>qcpu</B> queue have maximum available 12 cores/node.");
+	if(this.values.num_cores > 12 && this.values.queue.indexOf("qgpu") > -1)
+		jobnotes.push("<B>qgpu</B> queue have maximum available 12 cores/node.");
 	if(this.values.gpus > 0 && this.values.queue.indexOf("qcpu") > -1)
 		jobnotes.push("<B>qcpu</B> queue is not available gpu execution.");
-	if(this.values.num_cores > 12 && this.values.queue.indexOf("qcpu") > -1)
-		jobnotes.push("<B>qcpu</B> queue have maximum available 12 cores/node/job.");
-	if(this.values.num_cores > 6 && this.values.queue.indexOf("qgpu") > -1)
-		jobnotes.push("<B>qgpu</B> queue have maximum available 6 cores/node/job.");
 	if(this.values.queue.indexOf("qcpu") && this.values.queue.indexOf("qgpu") != 0)
 		jobnotes.push("Please select <B>qcpu</B> or <B>qgpu</B> queue for execution");
 	if(this.values.queue.indexOf("qcpu") > -1 && this.values.queue.indexOf("qgpu") > -1)
@@ -325,44 +304,28 @@ VISTECScriptGen.prototype.generateScriptPBS = function () {
 
 		if(this.values.queue[0] == "qgpu" && this.values.mpirun_false != 0) {
 	
-		var scr = "\n\n#!/bin/bash\n\n#Submit this script with: qsub thefilename\n\n##################### PBS Head #######################\n#######Auto Generated By Galaxy Cluster@VISTEC########\n\n";
-		scr +=  "# set shell that interprets the job script \n#PBS -S /bin/bash\n"
+		var scr = "\n\n#!/bin/bash\n\n#Submit this script with: sbatch thefilename\n\n##################### Slurm Head #######################\n########Auto Generated By Galaxy Cluster@VISTEC#########\n";
 
 		if(this.inputs.node.value > 0)
-			procs = "select=" + this.inputs.node.value + ":" + "ncpus=" + this.values.num_cores;
+			scr += "\n# set the number of nodes and processes per node\n" + "#SBATCH --nodes=" + this.inputs.node.value + "\n";
+			
+		if(this.values.num_cores > 0)
+			scr += "\n# set the number of cpu per task\n" + "#SBATCH --cpus-per-task=" + this.values.num_cores + "\n";
+
+		if(this.values.queue.length > 0)
+			scr += "\n# set queue that is destination of the job\n" + "#SBATCH --partition=qgpu\n";
 
 		if(this.inputs.mem_per_core.value > 0)
-			procs += ":mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value;
+			scr += "\n# set the number of memory per node\n" + "#SBATCH --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value + "\n";
 
 		if(this.inputs.num_gpus.value > 0)
-			procs += ":ngpus=" + this.inputs.num_gpus.value;
-		
-		if(this.values.queue.length > 0)
-			scr += "\n# set queue that is destination of the job\n" + "#PBS -q " + "qgpu" + "\n";
-		
-		scr += "\n# set the number of nodes and processes per node\n" + "#PBS -l " + procs + "\n";
-		scr += "\n# use submission environment\n#PBS -V\n";
+			scr += "\n# set the number of GPU\n" + "#SBATCH --gres=gpu: " + this.inputs.num_gpus.value + "\n";
 		
 		if(this.inputs.job_name.value != "") {
-			scr += "\n# set name of job\n" + "#PBS -N " + this.inputs.job_name.value + "\n";
-		}
-
-		if(this.inputs.email_begin.checked || this.inputs.email_end.checked || this.inputs.email_abort.checked) {
-			var emailletters = [];
-			if(this.inputs.email_begin.checked)
-				emailletters.push("b");
-			if(this.inputs.email_end.checked)
-				emailletters.push("e");
-			if(this.inputs.email_abort.checked)
-				emailletters.push("a");
-			scr += "\n# mail alert at (b)eginning, (e)nd and (a)bortion of execution\n#PBS -m " + emailletters.join("") + "\n";
-			scr += "\n# send mail to the following address\n#PBS -M " + this.inputs.email_address.value + "\n";
-			if(this.inputs.email_address.value == this.settings.defaults.email_address)
-				scr += "echo \"$USER: Please change the -M option to your real email address before submitting. Then remove this line.\"; exit 1\n";
+			scr += "\n# set name of job\n" + "#SBATCH --job-name=" + this.inputs.job_name.value + "\n";
 		}
 	
-		scr += "\n# start job from the directory it was submitted\ncd $PBS_O_WORKDIR\n";
-		scr += "\n######################################################\n";
+		scr += "\n########################################################\n";
 		scr += "\n# LOAD MODULES HERE\n";
 		scr += "\n# INSERT CODE, AND RUN YOUR PROGRAMS HERE\n\n";
 
@@ -372,88 +335,57 @@ VISTECScriptGen.prototype.generateScriptPBS = function () {
 	
 	if(this.values.queue[0] == "qgpu" && this.values.mpirun_true != 0) {
 	
-		var scr = "\n\n#!/bin/bash\n\n#Submit this script with: qsub thefilename\n\n##################### PBS Head #######################\n#######Auto Generated By Galaxy Cluster@VISTEC########\n\n";
-		scr +=  "# set shell that interprets the job script \n#PBS -S /bin/bash\n"
+		var scr = "\n\n#!/bin/bash\n\n#Submit this script with: sbatch thefilename\n\n##################### Slurm Head #######################\n########Auto Generated By Galaxy Cluster@VISTEC#########\n";
 
 		if(this.inputs.node.value > 0)
-			procs = "select=" + this.inputs.node.value + ":" + "ncpus=" + this.values.num_cores + ":" + "mpiprocs=" + this.values.num_cores;
-
-		if(this.inputs.mem_per_core.value > 0)
-			procs += ":mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value;
-
-		if(this.inputs.num_gpus.value > 0)
-			procs += ":ngpus=" + this.inputs.num_gpus.value;
+			scr += "\n# set the number of nodes and processes per node\n" + "#SBATCH --nodes=" + this.inputs.node.value + "\n";
+			
+		if(this.values.num_cores > 0)
+			scr += "\n# set the number of task per node\n" + "#SBATCH --ntasks-per-node=" + this.values.num_cores + "\n";
 
 		if(this.values.queue.length > 0)
-			scr += "\n# set queue that is destination of the job\n" + "#PBS -q " + "qgpu" + "\n";
-		
-		scr += "\n# set the number of nodes and processes per node\n" + "#PBS -l " + procs + "\n";
-		scr += "\n# use submission environment\n#PBS -V\n";
+			scr += "\n# set queue that is destination of the job\n" + "#SBATCH --partition=qgpu\n";
+
+		if(this.inputs.mem_per_core.value > 0)
+			scr += "\n# set the number of memory per node\n" + "#SBATCH --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value + "\n";
+
+		if(this.inputs.num_gpus.value > 0)
+			scr += "\n# set the number of GPU\n" + "#SBATCH --gres=gpu:" + this.inputs.num_gpus.value + "\n";
 		
 		if(this.inputs.job_name.value != "") {
-			scr += "\n# set name of job\n" + "#PBS -N " + this.inputs.job_name.value + "\n";
-		}
-
-		if(this.inputs.email_begin.checked || this.inputs.email_end.checked || this.inputs.email_abort.checked) {
-			var emailletters = [];
-			if(this.inputs.email_begin.checked)
-				emailletters.push("b");
-			if(this.inputs.email_end.checked)
-				emailletters.push("e");
-			if(this.inputs.email_abort.checked)
-				emailletters.push("a");
-			scr += "\n# mail alert at (b)eginning, (e)nd and (a)bortion of execution\n#PBS -m " + emailletters.join("") + "\n";
-			scr += "\n# send mail to the following address\n#PBS -M " + this.inputs.email_address.value + "\n";
-			if(this.inputs.email_address.value == this.settings.defaults.email_address)
-				scr += "echo \"$USER: Please change the -M option to your real email address before submitting.\n";
+			scr += "\n# set name of job\n" + "#SBATCH --job-name=" + this.inputs.job_name.value + "\n";
 		}
 	
-		scr += "\n# start job from the directory it was submitted\ncd $PBS_O_WORKDIR\n";
-		scr += "\n######################################################\n";
+		scr += "\n########################################################\n";
 		scr += "\n# LOAD MODULES HERE\n";
-		scr += "\nmpirun -np " + this.inputs.node.value*this.values.num_cores + " INSERT CODE, AND RUN YOUR PROGRAMS HERE\n\n";
-
+		scr += "\nmodule load openmpi3\n";
+		scr += "\n# INSERT CODE, AND RUN YOUR PROGRAMS HERE\n";
+		scr += "\nsrun --mpi=pmix_v2 -n " + this.values.num_cores + " ./yourprogram\n\n";
 		return scr;
 	}
 	
 	
 	if(this.values.queue[0] == "qcpu" && this.values.mpirun_false != 0) {
 	
-		var scr = "\n\n#!/bin/bash\n\n#Submit this script with: qsub thefilename\n\n##################### PBS Head #######################\n#######Auto Generated By Galaxy Cluster@VISTEC########\n\n";
-		scr +=  "# set shell that interprets the job script \n#PBS -S /bin/bash\n"
+		var scr = "\n\n#!/bin/bash\n\n#Submit this script with: sbatch thefilename\n\n##################### Slurm Head #######################\n########Auto Generated By Galaxy Cluster@VISTEC#########\n";
 
 		if(this.inputs.node.value > 0)
-			procs = "nodes=" + this.inputs.node.value + ":" + "ppn=" + this.values.num_cores;
+			scr += "\n# set the number of nodes and processes per node\n" + "#SBATCH --nodes=" + this.inputs.node.value + "\n";
+			
+		if(this.values.num_cores > 0)
+			scr += "\n# set the number of cpu per task\n" + "#SBATCH --cpus-per-task=" + this.values.num_cores + "\n";
+
+		if(this.values.queue.length > 0)
+			scr += "\n# set queue that is destination of the job\n" + "#SBATCH --partition=qcpu\n";
 
 		if(this.inputs.mem_per_core.value > 0)
-			procs += ":" + "pmem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value;
-		
-		if(this.values.queue.length > 0)
-			scr += "\n# set queue that is destination of the job\n" + "#PBS -q " + "qcpu" + "\n";
-		
-		scr += "\n# set the number of nodes and processes per node\n" + "#PBS -l " + procs + "\n";
-		scr += "\n# use submission environment\n#PBS -V\n";
-		
-		if(this.inputs.job_name.value != "") {
-			scr += "\n# set name of job\n" + "#PBS -N " + this.inputs.job_name.value + "\n";
-		}
+			scr += "\n# set the number of memory per node\n" + "#SBATCH --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value + "\n";
 
-		if(this.inputs.email_begin.checked || this.inputs.email_end.checked || this.inputs.email_abort.checked) {
-			var emailletters = [];
-			if(this.inputs.email_begin.checked)
-				emailletters.push("b");
-			if(this.inputs.email_end.checked)
-				emailletters.push("e");
-			if(this.inputs.email_abort.checked)
-				emailletters.push("a");
-			scr += "\n# mail alert at (b)eginning, (e)nd and (a)bortion of execution\n#PBS -m " + emailletters.join("") + "\n";
-			scr += "\n# send mail to the following address\n#PBS -M " + this.inputs.email_address.value + "\n";
-			if(this.inputs.email_address.value == this.settings.defaults.email_address)
-				scr += "echo \"$USER: Please change the -M option to your real email address before submitting. Then remove this line.\"; exit 1\n";
+		if(this.inputs.job_name.value != "") {
+			scr += "\n# set name of job\n" + "#SBATCH --job-name=" + this.inputs.job_name.value + "\n";
 		}
 	
-		scr += "\n# start job from the directory it was submitted\ncd $PBS_O_WORKDIR\n";
-		scr += "\n######################################################\n";
+		scr += "\n########################################################\n";
 		scr += "\n# LOAD MODULES HERE\n";
 		scr += "\n# INSERT CODE, AND RUN YOUR PROGRAMS HERE\n\n";
 
@@ -462,43 +394,29 @@ VISTECScriptGen.prototype.generateScriptPBS = function () {
 	
 	if(this.values.queue[0] == "qcpu" && this.values.mpirun_true != 0) {
 	
-		var scr = "\n\n#!/bin/bash\n\n#Submit this script with: qsub thefilename\n\n##################### PBS Head #######################\n#######Auto Generated By Galaxy Cluster@VISTEC########\n\n";
-		scr +=  "# set shell that interprets the job script \n#PBS -S /bin/bash\n"
+	var scr = "\n\n#!/bin/bash\n\n#Submit this script with: sbatch thefilename\n\n##################### Slurm Head #######################\n########Auto Generated By Galaxy Cluster@VISTEC#########\n";
 
 		if(this.inputs.node.value > 0)
-			procs = "select=" + this.inputs.node.value + ":" + "ncpus=" + this.values.num_cores + ":" + "mpiproc=" + this.values.num_cores;
+			scr += "\n# set the number of nodes and processes per node\n" + "#SBATCH --nodes=" + this.inputs.node.value + "\n";
+			
+		if(this.values.num_cores > 0)
+			scr += "\n# set the number of task per node\n" + "#SBATCH --ntasks-per-node=" + this.values.num_cores + "\n";
+
+		if(this.values.queue.length > 0)
+			scr += "\n# set queue that is destination of the job\n" + "#SBATCH --partition=qcpu\n";
 
 		if(this.inputs.mem_per_core.value > 0)
-			procs += ":" + "mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value;
-		
-		if(this.values.queue.length > 0)
-			scr += "\n# set queue that is destination of the job\n" + "#PBS -q " + "qcpu" + "\n";
-		
-		scr += "\n# set the number of nodes and processes per node\n" + "#PBS -l " + procs + "\n";
-		scr += "\n# use submission environment\n#PBS -V\n";
+			scr += "\n# set the number of memory per node\n" + "#SBATCH --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value + "\n";
 		
 		if(this.inputs.job_name.value != "") {
-			scr += "\n# set name of job\n" + "#PBS -N " + this.inputs.job_name.value + "\n";
-		}
-
-		if(this.inputs.email_begin.checked || this.inputs.email_end.checked || this.inputs.email_abort.checked) {
-			var emailletters = [];
-			if(this.inputs.email_begin.checked)
-				emailletters.push("b");
-			if(this.inputs.email_end.checked)
-				emailletters.push("e");
-			if(this.inputs.email_abort.checked)
-				emailletters.push("a");
-			scr += "\n# mail alert at (b)eginning, (e)nd and (a)bortion of execution\n#PBS -m " + emailletters.join("") + "\n";
-			scr += "\n# send mail to the following address\n#PBS -M " + this.inputs.email_address.value + "\n";
-			if(this.inputs.email_address.value == this.settings.defaults.email_address)
-				scr += "echo \"$USER: Please change the -M option to your real email address before submitting. Then remove this line.\"; exit 1\n";
+			scr += "\n# set name of job\n" + "#SBATCH --job-name=" + this.inputs.job_name.value + "\n";
 		}
 	
-		scr += "\n# start job from the directory it was submitted\ncd $PBS_O_WORKDIR\n";
-		scr += "\n######################################################\n";
+		scr += "\n########################################################\n";
 		scr += "\n# LOAD MODULES HERE\n";
-		scr += "\nmpirun -np " + this.inputs.node.value*this.values.num_cores + " INSERT CODE, AND RUN YOUR PROGRAMS HERE\n\n";
+		scr += "\nmodule load openmpi3\n";
+		scr += "\n# INSERT CODE, AND RUN YOUR PROGRAMS HERE\n\n";
+		scr += "\nsrun --mpi=pmix_v2 -n " + this.values.num_cores + " ./yourprogram\n\n";
 
 		return scr;
 	}
