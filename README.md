@@ -6,6 +6,6 @@ This script is provided for Galaxy Cluster @Scalable Data Systems Lab (SCADS), S
 
 Example: [https://manbaritone.github.io/Slurm-Autogen/script.html](https://manbaritone.github.io/Slurm-Autogen/script.html)
 
-Modified By: Bundit Boonyarit <<bundit.b_s18@vistec.ac.th>>
+Modified By: Bundit Boonyarit, bundit.b_s18@vistec.ac.th
 
 Modified from: [https://github.com/BYUHPC/BYUJobScriptGenerator](https://github.com/BYUHPC/BYUJobScriptGenerator)
