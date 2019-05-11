@@ -4,7 +4,7 @@
 
 This script is provided for Galaxy Cluster @Scalable Data Systems Lab (SCADS), School of Information Science and Technology (IST), Vidyasirimedhi Institute of Science and Technology (VISTEC).
 
-Example: [link text itself]: https://manbaritone.github.io/Slurm-Autogen/script.html
+Example: [https://manbaritone.github.io/Slurm-Autogen/script.html](https://manbaritone.github.io/Slurm-Autogen/script.html)
 
 Modified By: Bundit Boonyarit <<bundit.b_s18@vistec.ac.th>>
 
