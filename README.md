@@ -8,4 +8,4 @@ Example: [https://manbaritone.github.io/Slurm-Autogen/script.html](https://manba
 
 Modified By: Bundit Boonyarit <<bundit.b_s18@vistec.ac.th>>
 
-Modified from: https://github.com/BYUHPC/BYUJobScriptGenerator
+Modified from: [https://github.com/BYUHPC/BYUJobScriptGenerator](https://github.com/BYUHPC/BYUJobScriptGenerator)
