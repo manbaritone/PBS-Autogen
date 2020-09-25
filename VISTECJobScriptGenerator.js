@@ -51,6 +51,7 @@ Vidyasirimedhi Institute of Science and Technology (VISTEC)
 var VISTECScriptGen = function(div) {
 	this.values = {};
 	this.containerDiv = div;
+	this.containerDiv2 = div;
 	this.inputs = {};
 	this.inputs.features = {};
 	this.formrows = [];
@@ -58,9 +59,9 @@ var VISTECScriptGen = function(div) {
 		defaults : {
 			email_address : "myemail@vistec.ac.th", //example.com should be blackholed
 		},
-		/* You may want to dynamically generate features/queue. See example HTML file */
-		queue : {},
-		queue_status : {},
+		/* You may want to dynamically generate features/partition. See example HTML file */
+		partition : {},
+		partition_status : {},
 	};
 	return this;
 };
@@ -168,49 +169,45 @@ VISTECScriptGen.prototype.createForm = function(doc) {
 		return headertr;
 	}
 
+	/* Create Form */
+
 	var newEl;
 	form = document.createElement("form");
 	var table = document.createElement("table");
 	form.appendChild(table);
-	table.appendChild(newHeaderRow("Slurm Script Generator @Galaxy Cluster"));
+	table.appendChild(newHeaderRow("SLURM Script Generator @Galaxy Cluster"));
 
-	this.inputs.node = this.newInput({value:1});
+	
+	this.inputs.single_node = this.newCheckbox({checked:1});
 	this.inputs.num_cores = this.newInput({value:1});
 	this.inputs.num_gpus = this.newInput({value:0});
 	this.inputs.mem_per_core = this.newInput({value:0});
 	this.inputs.mem_units = this.newSelect({options:[["GB", "GB"],["MB", "MB"]]});
+	this.inputs.wallhours = this.newInput({value:"0", size:3});
+	this.inputs.wallmins = this.newInput({value:"00", size:2, maxLength:2});
+	this.inputs.wallsecs = this.newInput({value:"00", size:2, maxLength:2});
 	this.inputs.job_name = this.newInput({});
 	this.inputs.mpirun_true = this.newCheckbox({checked:0});
 	this.inputs.mpirun_false = this.newCheckbox({checked:0});
-	
-	this.inputs.queue = [];
-	if(this.settings.queue.show) {
-		var queue_span = this.newSpan("vistec_sg_input_queue");
-		for(var i in this.settings.queue.names) {
+	this.inputs.chdir = this.newInput({});
+	this.inputs.partition = [];
+
+	table.appendChild(this.returnNewRow("vistec_sg_row_onenode", "Limit this job to one node: ", this.inputs.single_node));	
+
+	if(this.settings.partition.show) {
+		var partition_span = this.newSpan("vistec_sg_input_partition");
+		for(var i in this.settings.partition.names) {
 			var new_checkbox = this.newCheckbox({checked:0});
-			new_checkbox.queue_name = this.settings.queue.names[i];
-			this.inputs.queue.push(new_checkbox);
-			var url = this.newA(this.settings.queue.info_base_url + this.settings.queue.names[i], "");
-			var queue_container = this.newSpan(null);
-			queue_container.className = "vistec_sg_input_queue_container";
-			var name_span = this.newSpan("vistec_sg_input_queue_" + new_checkbox.queue_name, new_checkbox, this.settings.queue.names[i]);
-			name_span.className = "vistec_sg_input_queue_name";
-			queue_container.appendChild(name_span);
-			if(this.settings.queue_status && this.settings.queue_status[this.settings.queue.names[i]]) {
-				var queue_status = this.settings.queue_status[this.settings.queue.names[i]];
-				queue_container.appendChild(
-					this.newSpan(	null,
-							"Nodes avail: ",
-							queue_status.nodes_free + "/" + queue_status.nodes_total,
-							br(),
-							"Cores avail: ",
-							queue_status.cores_free + "/" + queue_status.cores_total
-					)
-				);
-			}
-			queue_span.appendChild(queue_container);
+			new_checkbox.partition_name = this.settings.partition.names[i];
+			this.inputs.partition.push(new_checkbox);
+			var partition_container = this.newSpan(null);
+			partition_container.className = "vistec_sg_input_partition_container";
+			var name_span = this.newSpan("vistec_sg_input_partition_" + new_checkbox.partition_name, new_checkbox, this.settings.partition.names[i]);
+			name_span.className = "vistec_sg_input_partition_name";
+			partition_container.appendChild(name_span);
+			partition_span.appendChild(partition_container);
 		}
-		table.appendChild(this.returnNewRow("vistec_sg_input_queue", "Queue: ", queue_span));
+		table.appendChild(this.returnNewRow("vistec_sg_input_partition", "Partition: ", partition_span));
 	}
 	
 	table.appendChild(this.returnNewRow("vistec_sg_row_mpirun", "Use MPI Process:",
@@ -221,12 +218,14 @@ VISTECScriptGen.prototype.createForm = function(doc) {
 						" No "
 						)
 			)
-	);		
-	table.appendChild(this.returnNewRow("vistec_sg_row_onenode", "Number of node(s): ", this.inputs.node));
-	table.appendChild(this.returnNewRow("vistec_sg_row_numcores", "Number of processor cores <b>across per node</b>: ", this.inputs.num_cores));
+	);
+		
+	table.appendChild(this.returnNewRow("vistec_sg_row_numcores", "Number of processor cores <B>across all nodes</B>: ", this.inputs.num_cores));
 	table.appendChild(this.returnNewRow("vistec_sg_row_numgpus", "Number of GPUs: ", this.inputs.num_gpus));
 	table.appendChild(this.returnNewRow("vistec_sg_row_mempercore", "Memory per node: ", this.newSpan(null, this.inputs.mem_per_core, this.inputs.mem_units)));
+	table.appendChild(this.returnNewRow("vistec_sg_row_walltime", "Walltime: ", this.newSpan(null, this.inputs.wallhours, " hours ", this.inputs.wallmins, " mins ", this.inputs.wallsecs, " secs")));
 	table.appendChild(this.returnNewRow("vistec_sg_row_jobname", "Job name: ", this.inputs.job_name));
+	table.appendChild(this.returnNewRow("vistec_sg_row_chdir", "Working directory: ", this.inputs.chdir));
 	
 	return form;
 
@@ -236,95 +235,128 @@ VISTECScriptGen.prototype.retrieveValues = function() {
 	var jobnotes = [];
 	this.values.MB_per_core = Math.round(this.inputs.mem_per_core.value * (this.inputs.mem_units.value =="GB" ? 1024 : 1));
 
-	this.values.features = [];
-	for(var i in this.inputs.features) {
-		if(this.inputs.features[i].checked){
-			this.values.features.push(this.inputs.features[i].feature_name);
-		} else {
-		}
-	}
-
-	this.values.queue = [];
-	for(var i in this.inputs.queue) {
-		if(this.inputs.queue[i].checked){
-			this.values.queue.push(this.inputs.queue[i].queue_name);
+	this.values.partition = [];
+	for(var i in this.inputs.partition) {
+		if(this.inputs.partition[i].checked){
+			this.values.partition.push(this.inputs.partition[i].partition_name);
 		} else {
 		}
 	}
 
 	this.values.num_cores = this.inputs.num_cores.value;
-	this.values.nodes = this.inputs.node;
+	if(this.inputs.single_node.checked)
+		this.values.nodes = 1;
 	this.values.gpus = this.inputs.num_gpus.value;
+	this.values.walltime_in_minutes = this.inputs.wallhours.value * 3600 + this.inputs.wallmins.value * 60;
 	this.values.job_name = this.inputs.job_name.value;
 	this.values.mpirun_true = this.inputs.mpirun_true.checked;
 	this.values.mpirun_false = this.inputs.mpirun_false.checked;
-	
-	this.values.nodes = Math.round(this.inputs.node.value);
 	this.values.gpus = Math.round(this.inputs.num_gpus.value);
 	this.values.num_cores = Math.round(this.inputs.num_cores.value);
 	this.values.mpirun_true = Math.round(this.inputs.mpirun_true.checked);
 	this.values.mpirun_false = Math.round(this.inputs.mpirun_false.checked);
+	this.values.chdir = this.inputs.chdir.value;
 	
-	/* Add warnings, etc. to jobnotes array */
-	if(this.values.MB_per_core > 32*1024)
+	/* Add warnings, RAM */
+	if(this.values.MB_per_core > 64*1024)
 		jobnotes.push("Are you crazy? That is way too much RAM!");
-	if(this.values.MB_per_core > 32*1024 && this.values.queue.indexOf("qcpu") > -1)
-		jobnotes.push("<B>qcpu</B> queue, nodes have 32 GB of RAM. You want more than that per core.");
-	if(this.values.MB_per_core > 32*1024 && this.values.queue.indexOf("qgpu") > -1)
-		jobnotes.push("<B>qgpu</B> queue, nodes have 32 GB of RAM. You want more than that per core.");
-	if(this.values.nodes > 3 && this.values.queue.indexOf("qcpu") > -1)
-		jobnotes.push("<B>qcpu</B> queue, vnodes have maximum available 4 nodes per job.");
-	if(this.values.nodes > 3 && this.values.queue.indexOf("qgpu") > -1)
-		jobnotes.push("<B>qgpu</B> queue, vnodes have maximum available 6 nodes per job.");
-	if(this.values.gpus > 5 && this.values.queue.indexOf("qgpu") > -1)
-		jobnotes.push("<B>qgpu</B> queue, gpus have maximum available 6 gpu per job.");
-	if(this.values.num_cores > 12 && this.values.queue.indexOf("qcpu") > -1)
-		jobnotes.push("<B>qcpu</B> queue have maximum available 12 cores/node.");
-	if(this.values.num_cores > 12 && this.values.queue.indexOf("qgpu") > -1)
-		jobnotes.push("<B>qgpu</B> queue have maximum available 12 cores/node.");
-	if(this.values.gpus > 0 && this.values.queue.indexOf("qcpu") > -1)
-		jobnotes.push("<B>qcpu</B> queue is not available gpu execution.");
-	if(this.values.queue.indexOf("qcpu") && this.values.queue.indexOf("qgpu") != 0)
-		jobnotes.push("Please select <B>qcpu</B> or <B>qgpu</B> queue for execution");
-	if(this.values.queue.indexOf("qcpu") > -1 && this.values.queue.indexOf("qgpu") > -1)
-		jobnotes.push("Please select <B>qcpu</B> or <B>qgpu</B> option, only 1 queue for execution");
-	if(this.values.queue.indexOf("qgpu") > -1 && this.values.gpus == 0)
-		jobnotes.push("Please define <B>Number of GPUs</B> for <B>qgpu</B> queue");
+	if(this.values.MB_per_core > 64*1024 && this.values.partition.indexOf("CPU") > -1)
+		jobnotes.push("<B>CPU</B> partition, nodes have miximum RAM to 64 GB. You want more than that per core.");
+	if(this.values.MB_per_core > 64*1024 && this.values.partition.indexOf("GPU_GTX1070Ti") > -1)
+		jobnotes.push("<B>GPU_GTX1070Ti</B> partition, nodes have miximum RAM to 64 GB of RAM. You want more than that per core.");
+	if(this.values.MB_per_core > 64*1024 && this.values.partition.indexOf("GPU_RTX2070") > -1)
+		jobnotes.push("<B>GPU_RTX2070</B> partition, nodes have miximum RAM to 64 GB of RAM. You want more than that per core.");
+	if(this.values.MB_per_core > 32*1024 && this.values.partition.indexOf("GPU_RTX2080") > -1)
+		jobnotes.push("<B>GPU_RTX2080</B> partition, nodes have miximum RAM to 32 GB of RAM. You want more than that per core.");
+
+	/* Add warnings, GPU */
+	if(this.values.gpus > 4 && this.values.partition.indexOf("GPU_GTX1070Ti") > -1)
+		jobnotes.push("<B>GPU_GTX1070Ti</B> partition, gpus have maximum available 4 gpus per job.");
+	if(this.values.gpus > 2 && this.values.partition.indexOf("GPU_RTX2070") > -1)
+		jobnotes.push("<B>GPU_RTX2070</B> partition, gpus have maximum available 2 gpus per job.");
+	if(this.values.gpus > 1 && this.values.partition.indexOf("GPU_RTX2080") > -1)
+		jobnotes.push("<B>GPU_RTX2080</B> partition, gpu has maximum available 1 gpu per job.");
+
+	/* Add warnings, CPU CORES */
+	if(this.values.num_cores > 80 && this.values.partition.indexOf("CPU") > -1)
+		jobnotes.push("<B>CPU</B> partition have maximum available 80 cores for all nodes.");
+	if(this.values.num_cores > 20 && this.values.partition.indexOf("GPU_GTX1070Ti") > -1)
+		jobnotes.push("<B>GPU_GTX1070Ti</B> partition have maximum available 20 cores for all nodes.");
+	if(this.values.num_cores > 12 && this.values.partition.indexOf("GPU_RTX2070") > -1)
+		jobnotes.push("<B>GPU_RTX2070</B> partition have maximum available 12 cores for all nodes.");
+	if(this.values.num_cores > 16 && this.values.partition.indexOf("GPU_RTX2080") > -1)
+		jobnotes.push("<B>GPU_RTX2080</B> partition have maximum available 16 cores for all nodes.");
+	if(this.values.num_cores > 16 && this.values.mpirun_false != 0)
+		jobnotes.push("<B>MPI process</B> must required for CPU cores > 16 cores.");
+
+	/* Add warnings, NODE */	
+	if(this.inputs.single_node.checked && this.values.num_cores > 16)
+		jobnotes.push("<B>CPU cores</B> have maximum available 16 cores for single node.");
+
+	/* Add warnings, PARTITIONS */
+	if(this.values.gpus > 0 && this.values.partition.indexOf("CPU") > -1)
+		jobnotes.push("<B>CPU</B> partition is not available for gpu execution.");
+	if(this.values.partition.indexOf("CPU") && this.values.partition.indexOf("GPU_GTX1070Ti") && this.values.partition.indexOf("GPU_RTX2070") && this.values.partition.indexOf("GPU_RTX2080") != 0)
+		jobnotes.push("Please select <B>CPU, GPU_GTX1070Ti, GPU_RTX2070, or GPU_RTX2080</B> partition for execution");
+	if(this.values.partition.indexOf("CPU") > -1 && (this.values.partition.indexOf("GPU_GTX1070Ti") > -1 || this.values.partition.indexOf("GPU_RTX2070") > -1 || this.values.partition.indexOf("GPU_RTX2080") > -1))
+		jobnotes.push("Please select <B>CPU or GPU</B> option for execution");
+	if(this.values.partition.indexOf("GPU_GTX1070Ti") > -1 && (this.values.partition.indexOf("GPU_RTX2070") > -1 || this.values.partition.indexOf("GPU_RTX2080") > -1))
+		jobnotes.push("Please select only <B>1 GPU</B> partition for execution");	
+	else if(this.values.partition.indexOf("GPU_RTX2070") > -1 && (this.values.partition.indexOf("GPU_GTX1070Ti") > -1 || this.values.partition.indexOf("GPU_RTX2080") > -1))
+		jobnotes.push("Please select only <B>1 GPU</B> partition for execution");	
+	else if(this.values.partition.indexOf("GPU_RTX2080") > -1 && (this.values.partition.indexOf("GPU_GTX1070Ti") > -1 || this.values.partition.indexOf("GPU_RTX2070") > -1))
+		jobnotes.push("Please select only <B>1 GPU</B> partition for execution");		
+	if((this.values.partition.indexOf("GPU_GTX1070Ti") > -1 || this.values.partition.indexOf("GPU_RTX2070") > -1 || this.values.partition.indexOf("GPU_RTX2080") > -1) && this.values.gpus == 0)
+		jobnotes.push("Please define <B>Number of GPUs</B> for <B>GPU</B> partition");
+
+	/* Add warnings, MPI */
 	if(this.values.mpirun_true == 0 && this.values.mpirun_false == 0)
 		jobnotes.push("Please select <B>MPI Process</B>");
 	if(this.values.mpirun_true !=0 && this.values.mpirun_false != 0)
 		jobnotes.push("Please select <B>MPI Process</B> only one option, <B>Yes</B> or <B>No</B>");
 
+	/* Add warnings, Walltime */
+	if(this.values.walltime_in_minutes > 86400*5 && this.values.partition.indexOf("CPU") > -1)
+		jobnotes.push("<B>CPU</B> partition maximum walltime is 5 days");
+	if(this.values.walltime_in_minutes > 86400*3 && (this.values.partition.indexOf("GPU_GTX1070Ti") > -1 || this.values.partition.indexOf("GPU_RTX2070") > -1 || this.values.partition.indexOf("GPU_RTX2080") > -1))
+		jobnotes.push("<B>GPU</B> partition maximum walltime is 3 days");
 
 	this.jobNotesDiv.innerHTML = jobnotes.join("<br/>\n");
 };
 
-VISTECScriptGen.prototype.generateScriptPBS = function () {
+VISTECScriptGen.prototype.generateScriptSLURM = function () {
 	this.retrieveValues();
 
-		if(this.values.queue[0] == "qgpu" && this.values.mpirun_false != 0) {
-	
-		var scr = "\n\n#!/bin/bash\n\n#Submit this script with: sbatch thefilename\n\n##################### Slurm Head #######################\n########Auto Generated By Galaxy Cluster@VISTEC#########\n";
+	/* Add SLURM script for GPU_GTX1070Ti partition with no MPI */
 
-		if(this.inputs.node.value > 0)
-			scr += "\n# set the number of nodes and processes per node\n" + "#SBATCH --nodes=" + this.inputs.node.value + "\n";
-			
+	if(this.values.partition[0] == "GPU_GTX1070Ti" && this.values.mpirun_false != 0 && this.values.gpus > 0 && this.values.gpus < 5) {
+	
+		var scr = "\n\n#!/bin/bash\n\n#Submit this script with: sbatch thefilename\n\n##################### SLURM Head #######################\n########Auto Generated By Galaxy Cluster@VISTEC#########\n";
+
+		if(this.inputs.single_node.checked)
+			scr += "\n# set the number of nodes to single \n" + "#SBATCH --nodes=1 \n";
+
 		if(this.values.num_cores > 0)
 			scr += "\n# set the number of cpu per task\n" + "#SBATCH --cpus-per-task=" + this.values.num_cores + "\n";
 
-		if(this.values.queue.length > 0)
-			scr += "\n# set queue that is destination of the job\n" + "#SBATCH --partition=qgpu\n";
+		if(this.values.partition.length > 0)
+			scr += "\n# set partition that is destination of the job\n" + "#SBATCH --partition=qgpu_gtx1070ti\n";
 
 		if(this.inputs.mem_per_core.value > 0)
 			scr += "\n# set the number of memory per node\n" + "#SBATCH --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value + "\n";
 
 		if(this.inputs.num_gpus.value > 0)
-			scr += "\n# set the number of GPU\n" + "#SBATCH --gres=gpu: " + this.inputs.num_gpus.value + "\n";
-		
-		if(this.inputs.job_name.value != "") {
+			scr += "\n# set the number of GPU\n" + "#SBATCH --gres=gpu:" + this.inputs.num_gpus.value + "\n";
+
+		if(this.inputs.wallhours.value > 0)
+			scr += "\n# set walltime\n" + "#SBATCH --time=" + this.inputs.wallhours.value + ":" + this.inputs.wallmins.value + ":" + this.inputs.wallsecs.value + "\n";
+
+		if(this.inputs.job_name.value != "")
 			scr += "\n# set name of job\n" + "#SBATCH --job-name=" + this.inputs.job_name.value + "\n";
-		}
-	
+
+		if(this.inputs.chdir.value != "")
+			scr += "\n# set working directory\n" + "#SBATCH --chdir=\"" + this.inputs.chdir.value + "\"\n";
+
 		scr += "\n########################################################\n";
 		scr += "\n# LOAD MODULES HERE\n";
 		scr += "\n# INSERT CODE, AND RUN YOUR PROGRAMS HERE\n\n";
@@ -332,19 +364,20 @@ VISTECScriptGen.prototype.generateScriptPBS = function () {
 		return scr;
 	}
 	
-	
-	if(this.values.queue[0] == "qgpu" && this.values.mpirun_true != 0) {
-	
-		var scr = "\n\n#!/bin/bash\n\n#Submit this script with: sbatch thefilename\n\n##################### Slurm Head #######################\n########Auto Generated By Galaxy Cluster@VISTEC#########\n";
+	/* Add SLURM script for GPU_RTX2070 partition with no MPI */
 
-		if(this.inputs.node.value > 0)
-			scr += "\n# set the number of nodes and processes per node\n" + "#SBATCH --nodes=" + this.inputs.node.value + "\n";
+	if(this.values.partition[0] == "GPU_RTX2070" && this.values.mpirun_false != 0 && this.values.gpus > 0 && this.values.gpus < 3) {
+	
+		var scr = "\n\n#!/bin/bash\n\n#Submit this script with: sbatch thefilename\n\n##################### SLURM Head #######################\n########Auto Generated By Galaxy Cluster@VISTEC#########\n";
+
+		if(this.inputs.single_node.checked)
+			scr += "\n# set the number of nodes to single \n" + "#SBATCH --nodes=1 \n";
 			
 		if(this.values.num_cores > 0)
-			scr += "\n# set the number of task per node\n" + "#SBATCH --ntasks-per-node=" + this.values.num_cores + "\n";
+			scr += "\n# set the number of cpu per task\n" + "#SBATCH --cpus-per-task=" + this.values.num_cores + "\n";
 
-		if(this.values.queue.length > 0)
-			scr += "\n# set queue that is destination of the job\n" + "#SBATCH --partition=qgpu\n";
+		if(this.values.partition.length > 0)
+			scr += "\n# set partition that is destination of the job\n" + "#SBATCH --partition=qgpu_rtx2070\n";
 
 		if(this.inputs.mem_per_core.value > 0)
 			scr += "\n# set the number of memory per node\n" + "#SBATCH --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value + "\n";
@@ -352,9 +385,88 @@ VISTECScriptGen.prototype.generateScriptPBS = function () {
 		if(this.inputs.num_gpus.value > 0)
 			scr += "\n# set the number of GPU\n" + "#SBATCH --gres=gpu:" + this.inputs.num_gpus.value + "\n";
 		
-		if(this.inputs.job_name.value != "") {
+		if(this.inputs.wallhours.value > 0)
+			scr += "\n# set walltime\n" + "#SBATCH --time=" + this.inputs.wallhours.value + ":" + this.inputs.wallmins.value + ":" + this.inputs.wallsecs.value + "\n";
+		
+		if(this.inputs.job_name.value != "")
 			scr += "\n# set name of job\n" + "#SBATCH --job-name=" + this.inputs.job_name.value + "\n";
-		}
+		
+		if(this.inputs.chdir.value != "") 
+			scr += "\n# set working directory\n" + "#SBATCH --chdir=\"" + this.inputs.chdir.value + "\"\n";
+	
+		scr += "\n########################################################\n";
+		scr += "\n# LOAD MODULES HERE\n";
+		scr += "\n# INSERT CODE, AND RUN YOUR PROGRAMS HERE\n\n";
+
+		return scr;
+	}
+
+	/* Add SLURM script for GPU_RTX2080 partition with no MPI */
+
+	if(this.values.partition[0] == "GPU_RTX2070" && this.values.mpirun_false != 0 && this.values.gpus > 0 && this.values.gpus < 2) {
+	
+		var scr = "\n\n#!/bin/bash\n\n#Submit this script with: sbatch thefilename\n\n##################### SLURM Head #######################\n########Auto Generated By Galaxy Cluster@VISTEC#########\n";
+
+		if(this.inputs.single_node.checked)
+			scr += "\n# set the number of nodes to single \n" + "#SBATCH --nodes=1 \n";
+			
+		if(this.values.num_cores > 0)
+			scr += "\n# set the number of cpu per task\n" + "#SBATCH --cpus-per-task=" + this.values.num_cores + "\n";
+
+		if(this.values.partition.length > 0)
+			scr += "\n# set partition that is destination of the job\n" + "#SBATCH --partition=qgpu_rtx2080\n";
+
+		if(this.inputs.mem_per_core.value > 0)
+			scr += "\n# set the number of memory per node\n" + "#SBATCH --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value + "\n";
+
+		if(this.inputs.num_gpus.value > 0)
+			scr += "\n# set the number of GPU\n" + "#SBATCH --gres=gpu:" + this.inputs.num_gpus.value + "\n";
+		
+		if(this.inputs.wallhours.value > 0)
+			scr += "\n# set walltime\n" + "#SBATCH --time=" + this.inputs.wallhours.value + ":" + this.inputs.wallmins.value + ":" + this.inputs.wallsecs.value + "\n";
+		
+		if(this.inputs.job_name.value != "")
+			scr += "\n# set name of job\n" + "#SBATCH --job-name=" + this.inputs.job_name.value + "\n";
+		
+		if(this.inputs.chdir.value != "") 
+			scr += "\n# set working directory\n" + "#SBATCH --chdir=\"" + this.inputs.chdir.value + "\"\n";
+	
+		scr += "\n########################################################\n";
+		scr += "\n# LOAD MODULES HERE\n";
+		scr += "\n# INSERT CODE, AND RUN YOUR PROGRAMS HERE\n\n";
+
+		return scr;
+	}
+
+	/* Add SLURM script for GPU_GTX1070Ti partition with MPI */
+
+	if(this.values.partition[0] == "GPU_GTX1070Ti" && this.values.mpirun_true != 0 && this.values.gpus > 0 && this.values.gpus < 5) {
+	
+		var scr = "\n\n#!/bin/bash\n\n#Submit this script with: sbatch thefilename\n\n##################### SLURM Head #######################\n########Auto Generated By Galaxy Cluster@VISTEC#########\n";
+
+		if(this.inputs.single_node.checked)
+			scr += "\n# set the number of nodes to single \n" + "#SBATCH --nodes=1 \n";
+			
+		if(this.values.num_cores > 0)
+			scr += "\n# set the number of task all nodes\n" + "#SBATCH --ntasks=" + this.values.num_cores + "\n";
+
+		if(this.values.partition.length > 0)
+			scr += "\n# set partition that is destination of the job\n" + "#SBATCH --partition=qgpu_gtx1070ti\n";
+
+		if(this.inputs.mem_per_core.value > 0)
+			scr += "\n# set the number of memory per node\n" + "#SBATCH --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value + "\n";
+
+		if(this.inputs.num_gpus.value > 0)
+			scr += "\n# set the number of GPU\n" + "#SBATCH --gres=gpu:" + this.inputs.num_gpus.value + "\n";
+		
+		if(this.inputs.wallhours.value > 0)
+			scr += "\n# set walltime\n" + "#SBATCH --time=" + this.inputs.wallhours.value + ":" + this.inputs.wallmins.value + ":" + this.inputs.wallsecs.value + "\n";
+		
+		if(this.inputs.job_name.value != "")
+			scr += "\n# set name of job\n" + "#SBATCH --job-name=" + this.inputs.job_name.value + "\n";
+		
+		if(this.inputs.chdir.value != "") 
+			scr += "\n# set working directory\n" + "#SBATCH --chdir=\"" + this.inputs.chdir.value + "\"\n";
 	
 		scr += "\n########################################################\n";
 		scr += "\n# LOAD MODULES HERE\n";
@@ -364,26 +476,108 @@ VISTECScriptGen.prototype.generateScriptPBS = function () {
 		return scr;
 	}
 	
-	
-	if(this.values.queue[0] == "qcpu" && this.values.mpirun_false != 0) {
-	
-		var scr = "\n\n#!/bin/bash\n\n#Submit this script with: sbatch thefilename\n\n##################### Slurm Head #######################\n########Auto Generated By Galaxy Cluster@VISTEC#########\n";
+	/* Add SLURM script for GPU_RTX2070 partition with MPI */
 
-		if(this.inputs.node.value > 0)
-			scr += "\n# set the number of nodes and processes per node\n" + "#SBATCH --nodes=" + this.inputs.node.value + "\n";
+	if(this.values.partition[0] == "GPU_RTX2070" && this.values.mpirun_true != 0 && this.values.gpus > 0 && this.values.gpus < 3) {
+	
+		var scr = "\n\n#!/bin/bash\n\n#Submit this script with: sbatch thefilename\n\n##################### SLURM Head #######################\n########Auto Generated By Galaxy Cluster@VISTEC#########\n";
+
+		if(this.inputs.single_node.checked)
+			scr += "\n# set the number of nodes to single \n" + "#SBATCH --nodes=1 \n";
 			
 		if(this.values.num_cores > 0)
-			scr += "\n# set the number of cpu per task\n" + "#SBATCH --cpus-per-task=" + this.values.num_cores + "\n";
+			scr += "\n# set the number of task all nodes\n" + "#SBATCH --ntasks=" + this.values.num_cores + "\n";
 
-		if(this.values.queue.length > 0)
-			scr += "\n# set queue that is destination of the job\n" + "#SBATCH --partition=qcpu\n";
+		if(this.values.partition.length > 0)
+			scr += "\n# set partition that is destination of the job\n" + "#SBATCH --partition=qgpu_rtx2070\n";
 
 		if(this.inputs.mem_per_core.value > 0)
 			scr += "\n# set the number of memory per node\n" + "#SBATCH --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value + "\n";
 
-		if(this.inputs.job_name.value != "") {
+		if(this.inputs.num_gpus.value > 0)
+			scr += "\n# set the number of GPU\n" + "#SBATCH --gres=gpu:" + this.inputs.num_gpus.value + "\n";
+		
+		if(this.inputs.wallhours.value > 0)
+			scr += "\n# set walltime\n" + "#SBATCH --time=" + this.inputs.wallhours.value + ":" + this.inputs.wallmins.value + ":" + this.inputs.wallsecs.value + "\n";
+		
+		if(this.inputs.job_name.value != "")
 			scr += "\n# set name of job\n" + "#SBATCH --job-name=" + this.inputs.job_name.value + "\n";
-		}
+		
+		if(this.inputs.chdir.value != "") 
+			scr += "\n# set working directory\n" + "#SBATCH --chdir=\"" + this.inputs.chdir.value + "\"\n";	
+	
+		scr += "\n########################################################\n";
+		scr += "\n# LOAD MODULES HERE\n";
+		scr += "\nmodule load openmpi3\n";
+		scr += "\n# INSERT CODE, AND RUN YOUR PROGRAMS HERE\n";
+		scr += "\nsrun --mpi=pmix_v2 -n " + this.values.num_cores + " ./yourprogram\n\n";
+		return scr;
+	}
+	
+	/* Add SLURM script for GPU_RTX2080 partition with MPI */
+
+	if(this.values.partition[0] == "GPU_RTX2080" && this.values.mpirun_true != 0 && this.values.gpus > 0 && this.values.gpus < 2) {
+	
+		var scr = "\n\n#!/bin/bash\n\n#Submit this script with: sbatch thefilename\n\n##################### SLURM Head #######################\n########Auto Generated By Galaxy Cluster@VISTEC#########\n";
+
+		if(this.inputs.single_node.checked)
+			scr += "\n# set the number of nodes to single \n" + "#SBATCH --nodes=1 \n";
+			
+		if(this.values.num_cores > 0)
+			scr += "\n# set the number of task all nodes\n" + "#SBATCH --ntasks=" + this.values.num_cores + "\n";
+
+		if(this.values.partition.length > 0)
+			scr += "\n# set partition that is destination of the job\n" + "#SBATCH --partition=qgpu_rtx2080\n";
+
+		if(this.inputs.mem_per_core.value > 0)
+			scr += "\n# set the number of memory per node\n" + "#SBATCH --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value + "\n";
+
+		if(this.inputs.num_gpus.value > 0)
+			scr += "\n# set the number of GPU\n" + "#SBATCH --gres=gpu:" + this.inputs.num_gpus.value + "\n";
+		
+		if(this.inputs.wallhours.value > 0)
+			scr += "\n# set walltime\n" + "#SBATCH --time=" + this.inputs.wallhours.value + ":" + this.inputs.wallmins.value + ":" + this.inputs.wallsecs.value + "\n";
+		
+		if(this.inputs.job_name.value != "")
+			scr += "\n# set name of job\n" + "#SBATCH --job-name=" + this.inputs.job_name.value + "\n";
+		
+		if(this.inputs.chdir.value != "") 
+			scr += "\n# set working directory\n" + "#SBATCH --chdir=\"" + this.inputs.chdir.value + "\"\n";
+	
+		scr += "\n########################################################\n";
+		scr += "\n# LOAD MODULES HERE\n";
+		scr += "\nmodule load openmpi3\n";
+		scr += "\n# INSERT CODE, AND RUN YOUR PROGRAMS HERE\n";
+		scr += "\nsrun --mpi=pmix_v2 -n " + this.values.num_cores + " ./yourprogram\n\n";
+		return scr;
+	}
+	
+	/* Add SLURM script for CPU partition with no MPI */
+
+	if(this.values.partition[0] == "CPU" && this.values.mpirun_false != 0) {
+	
+		var scr = "\n\n#!/bin/bash\n\n#Submit this script with: sbatch thefilename\n\n##################### SLURM Head #######################\n########Auto Generated By Galaxy Cluster@VISTEC#########\n";
+
+		if(this.inputs.single_node.checked)
+			scr += "\n# set the number of nodes to single \n" + "#SBATCH --nodes=1 \n";
+			
+		if(this.values.num_cores > 0)
+			scr += "\n# set the number of cpu per task\n" + "#SBATCH --cpus-per-task=" + this.values.num_cores + "\n";
+
+		if(this.values.partition.length > 0)
+			scr += "\n# set partition that is destination of the job\n" + "#SBATCH --partition=qcpu\n";
+
+		if(this.inputs.mem_per_core.value > 0)
+			scr += "\n# set the number of memory per node\n" + "#SBATCH --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value + "\n";
+
+		if(this.inputs.wallhours.value > 0)
+			scr += "\n# set walltime\n" + "#SBATCH --time=" + this.inputs.wallhours.value + ":" + this.inputs.wallmins.value + ":" + this.inputs.wallsecs.value + "\n";
+
+		if(this.inputs.job_name.value != "")
+			scr += "\n# set name of job\n" + "#SBATCH --job-name=" + this.inputs.job_name.value + "\n";
+		
+		if(this.inputs.chdir.value != "") 
+			scr += "\n# set working directory\n" + "#SBATCH --chdir=\"" + this.inputs.chdir.value + "\"\n";
 	
 		scr += "\n########################################################\n";
 		scr += "\n# LOAD MODULES HERE\n";
@@ -392,25 +586,32 @@ VISTECScriptGen.prototype.generateScriptPBS = function () {
 		return scr;
 	}
 	
-	if(this.values.queue[0] == "qcpu" && this.values.mpirun_true != 0) {
-	
-	var scr = "\n\n#!/bin/bash\n\n#Submit this script with: sbatch thefilename\n\n##################### Slurm Head #######################\n########Auto Generated By Galaxy Cluster@VISTEC#########\n";
+	/* Add SLURM script for CPU partition with MPI */
 
-		if(this.inputs.node.value > 0)
-			scr += "\n# set the number of nodes and processes per node\n" + "#SBATCH --nodes=" + this.inputs.node.value + "\n";
+	if(this.values.partition[0] == "CPU" && this.values.mpirun_true != 0) {
+	
+	var scr = "\n\n#!/bin/bash\n\n#Submit this script with: sbatch thefilename\n\n##################### SLURM Head #######################\n########Auto Generated By Galaxy Cluster@VISTEC#########\n";
+
+		if(this.inputs.single_node.checked)
+			scr += "\n# set the number of nodes to single \n" + "#SBATCH --nodes=1 \n";
 			
 		if(this.values.num_cores > 0)
-			scr += "\n# set the number of task per node\n" + "#SBATCH --ntasks-per-node=" + this.values.num_cores + "\n";
+			scr += "\n# set the number of task all nodes\n" + "#SBATCH --ntasks=" + this.values.num_cores + "\n";
 
-		if(this.values.queue.length > 0)
-			scr += "\n# set queue that is destination of the job\n" + "#SBATCH --partition=qcpu\n";
+		if(this.values.partition.length > 0)
+			scr += "\n# set partition that is destination of the job\n" + "#SBATCH --partition=qcpu\n";
 
 		if(this.inputs.mem_per_core.value > 0)
 			scr += "\n# set the number of memory per node\n" + "#SBATCH --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value + "\n";
 		
-		if(this.inputs.job_name.value != "") {
+		if(this.inputs.wallhours.value > 0)
+			scr += "\n# set walltime\n" + "#SBATCH --time=" + this.inputs.wallhours.value + ":" + this.inputs.wallmins.value + ":" + this.inputs.wallsecs.value + "\n";
+
+		if(this.inputs.job_name.value != "")
 			scr += "\n# set name of job\n" + "#SBATCH --job-name=" + this.inputs.job_name.value + "\n";
-		}
+		
+		if(this.inputs.chdir.value != "") 
+			scr += "\n# set working directory\n" + "#SBATCH --chdir=\"" + this.inputs.chdir.value + "\"\n";
 	
 		scr += "\n########################################################\n";
 		scr += "\n# LOAD MODULES HERE\n";
@@ -422,6 +623,297 @@ VISTECScriptGen.prototype.generateScriptPBS = function () {
 	}
 
 };
+
+VISTECScriptGen.prototype.generateScriptSLURM2 = function () {
+	this.retrieveValues();
+
+	/* Add SLURM script for GPU_GTX1070Ti partition with no MPI */
+
+	if(this.values.partition[0] == "GPU_GTX1070Ti" && this.values.mpirun_false != 0 && this.values.gpus > 0 && this.values.gpus < 5) {
+	
+		var scr2 = "\n\nsbatch";
+
+		if(this.inputs.single_node.checked)
+			scr2 += " --node=1";
+
+		if(this.values.num_cores > 0)
+			scr2 += " --cpus-per-task=" + this.values.num_cores;
+
+		if(this.values.partition.length > 0)
+			scr2 += " --partition=qgpu_gtx1070ti";
+
+		if(this.inputs.mem_per_core.value > 0)
+			scr2 += " --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value;
+
+		if(this.inputs.num_gpus.value > 0)
+			scr2 += " --gres=gpu:" + this.inputs.num_gpus.value;
+
+		if(this.inputs.wallhours.value > 0)
+			scr2 += " --time=" + this.inputs.wallhours.value + ":" + this.inputs.wallmins.value + ":" + this.inputs.wallsecs.value;
+
+		if(this.inputs.job_name.value != "")
+			scr2 += " --job-name=" + this.inputs.job_name.value;
+
+		if(this.inputs.chdir.value != "")
+			scr2 += " --chdir=\"" + this.inputs.chdir.value + "\"";
+
+		scr2 += " --wrap=\"INSERT PATH TO YOUR PROGRAMS HERE\"";
+		scr2 += "\n\n";
+
+		return scr2;
+	}
+
+	/* Add SLURM script for GPU_RTX2070 partition with no MPI */
+
+	if(this.values.partition[0] == "GPU_RTX2070" && this.values.mpirun_false != 0 && this.values.gpus > 0 && this.values.gpus < 3) {
+
+		var scr2 = "\n\nsbatch";
+
+		if(this.inputs.single_node.checked)
+			scr2 += " --node=1";
+
+		if(this.values.num_cores > 0)
+			scr2 += " --cpus-per-task=" + this.values.num_cores;
+
+		if(this.values.partition.length > 0)
+			scr2 += " --partition=qgpu_rtx2070";
+
+		if(this.inputs.mem_per_core.value > 0)
+			scr2 += " --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value;
+
+		if(this.inputs.num_gpus.value > 0)
+			scr2 += " --gres=gpu:" + this.inputs.num_gpus.value;
+
+		if(this.inputs.wallhours.value > 0)
+			scr2 += " --time=" + this.inputs.wallhours.value + ":" + this.inputs.wallmins.value + ":" + this.inputs.wallsecs.value;
+
+		if(this.inputs.job_name.value != "")
+			scr2 += " --job-name=" + this.inputs.job_name.value;
+
+		if(this.inputs.chdir.value != "")
+			scr2 += " --chdir=\"" + this.inputs.chdir.value + "\"";
+
+		scr2 += " --wrap=\"INSERT PATH TO YOUR PROGRAMS HERE\"";
+		scr2 += "\n\n";
+
+		return scr2;
+	}
+
+	/* Add SLURM script for GPU_RTX2080 partition with no MPI */
+
+	if(this.values.partition[0] == "GPU_RTX2080" && this.values.mpirun_false != 0 && this.values.gpus > 0 && this.values.gpus < 2) {
+
+		var scr2 = "\n\nsbatch";
+
+		if(this.inputs.single_node.checked)
+			scr2 += " --node=1";
+
+		if(this.values.num_cores > 0)
+			scr2 += " --cpus-per-task=" + this.values.num_cores;
+
+		if(this.values.partition.length > 0)
+			scr2 += " --partition=qgpu_rtx2080";
+
+		if(this.inputs.mem_per_core.value > 0)
+			scr2 += " --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value;
+
+		if(this.inputs.num_gpus.value > 0)
+			scr2 += " --gres=gpu:" + this.inputs.num_gpus.value;
+
+		if(this.inputs.wallhours.value > 0)
+			scr2 += " --time=" + this.inputs.wallhours.value + ":" + this.inputs.wallmins.value + ":" + this.inputs.wallsecs.value;
+
+		if(this.inputs.job_name.value != "")
+			scr2 += " --job-name=" + this.inputs.job_name.value;
+
+		if(this.inputs.chdir.value != "")
+			scr2 += " --chdir=\"" + this.inputs.chdir.value + "\"";
+
+		scr2 += " --wrap=\"INSERT PATH TO YOUR PROGRAMS HERE\"";
+		scr2 += "\n\n";
+
+		return scr2;
+	}
+
+	/* Add SLURM script for GPU_GTX1070Ti partition with MPI */
+
+	if(this.values.partition[0] == "GPU_GTX1070Ti" && this.values.mpirun_true != 0 && this.values.gpus > 0 && this.values.gpus < 5) {
+	
+		var scr2 = "\n\nmodule load openmpi3\n"
+		scr2 += "\nsbatch";
+
+		if(this.inputs.single_node.checked)
+			scr2 += " --node=1";
+
+		if(this.values.num_cores > 0)
+			scr2 += " --ntasks=" + this.values.num_cores;
+
+		if(this.values.partition.length > 0)
+			scr2 += " --partition=qgpu_gtx1070ti";
+
+		if(this.inputs.mem_per_core.value > 0)
+			scr2 += " --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value;
+
+		if(this.inputs.num_gpus.value > 0)
+			scr2 += " --gres=gpu:" + this.inputs.num_gpus.value;
+
+		if(this.inputs.wallhours.value > 0)
+			scr2 += " --time=" + this.inputs.wallhours.value + ":" + this.inputs.wallmins.value + ":" + this.inputs.wallsecs.value;
+
+		if(this.inputs.job_name.value != "")
+			scr2 += " --job-name=" + this.inputs.job_name.value;
+
+		if(this.inputs.chdir.value != "")
+			scr2 += " --chdir=\"" + this.inputs.chdir.value + "\"";
+
+		scr2 += " --wrap=\"mpirun -np " + this.values.num_cores + " INSERT PATH TO YOUR PROGRAMS HERE\"";
+		scr2 += "\n\n";
+
+		return scr2;
+	}
+
+	/* Add SLURM script for GPU_RTX2070 partition with MPI */
+
+	if(this.values.partition[0] == "GPU_RTX2070" && this.values.mpirun_true != 0 && this.values.gpus > 0 && this.values.gpus < 3) {
+	
+		var scr2 = "\n\nmodule load openmpi3\n"
+		scr2 += "\nsbatch";
+
+		if(this.inputs.single_node.checked)
+			scr2 += " --node=1";
+
+		if(this.values.num_cores > 0)
+			scr2 += " --ntasks=" + this.values.num_cores;
+
+		if(this.values.partition.length > 0)
+			scr2 += " --partition=qgpu_rtx2070";
+
+		if(this.inputs.mem_per_core.value > 0)
+			scr2 += " --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value;
+
+		if(this.inputs.num_gpus.value > 0)
+			scr2 += " --gres=gpu:" + this.inputs.num_gpus.value;
+
+		if(this.inputs.wallhours.value > 0)
+			scr2 += " --time=" + this.inputs.wallhours.value + ":" + this.inputs.wallmins.value + ":" + this.inputs.wallsecs.value;
+
+		if(this.inputs.job_name.value != "")
+			scr2 += " --job-name=" + this.inputs.job_name.value;
+
+		if(this.inputs.chdir.value != "")
+			scr2 += " --chdir=\"" + this.inputs.chdir.value + "\"";
+
+		scr2 += " --wrap=\"mpirun -np " + this.values.num_cores + " INSERT PATH TO YOUR PROGRAMS HERE\"";
+		scr2 += "\n\n";
+
+		return scr2;
+	}
+
+	/* Add SLURM script for GPU_RTX2080 partition with MPI */
+
+	if(this.values.partition[0] == "GPU_RTX2080" && this.values.mpirun_true != 0 && this.values.gpus > 0 && this.values.gpus < 2) {
+	
+		var scr2 = "\n\nmodule load openmpi3\n"
+		scr2 += "\nsbatch";
+
+		if(this.inputs.single_node.checked)
+			scr2 += " --node=1";
+
+		if(this.values.num_cores > 0)
+			scr2 += " --ntasks=" + this.values.num_cores;
+
+		if(this.values.partition.length > 0)
+			scr2 += " --partition=qgpu_rtx2080";
+
+		if(this.inputs.mem_per_core.value > 0)
+			scr2 += " --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value;
+
+		if(this.inputs.num_gpus.value > 0)
+			scr2 += " --gres=gpu:" + this.inputs.num_gpus.value;
+
+		if(this.inputs.wallhours.value > 0)
+			scr2 += " --time=" + this.inputs.wallhours.value + ":" + this.inputs.wallmins.value + ":" + this.inputs.wallsecs.value;
+
+		if(this.inputs.job_name.value != "")
+			scr2 += " --job-name=" + this.inputs.job_name.value;
+
+		if(this.inputs.chdir.value != "")
+			scr2 += " --chdir=\"" + this.inputs.chdir.value + "\"";
+
+		scr2 += " --wrap=\"mpirun -np " + this.values.num_cores + " INSERT PATH TO YOUR PROGRAMS HERE\"";
+		scr2 += "\n\n";
+
+		return scr2;
+	}
+
+	/* Add SLURM script for CPU partition with no MPI */
+
+	if(this.values.partition[0] == "CPU" && this.values.mpirun_false != 0) {
+	
+		var scr2 = "\n\nsbatch";
+
+		if(this.inputs.single_node.checked)
+			scr2 += " --node=1";
+
+		if(this.values.num_cores > 0)
+			scr2 += " --cpus-per-task=" + this.values.num_cores;
+
+		if(this.values.partition.length > 0)
+			scr2 += " --partition=qcpu";
+
+		if(this.inputs.mem_per_core.value > 0)
+			scr2 += " --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value;
+
+		if(this.inputs.wallhours.value > 0)
+			scr2 += " --time=" + this.inputs.wallhours.value + ":" + this.inputs.wallmins.value + ":" + this.inputs.wallsecs.value;
+
+		if(this.inputs.job_name.value != "")
+			scr2 += " --job-name=" + this.inputs.job_name.value;
+
+		if(this.inputs.chdir.value != "")
+			scr2 += " --chdir=\"" + this.inputs.chdir.value + "\"";
+
+		scr2 += " --wrap=\"INSERT PATH TO YOUR PROGRAMS HERE\"";
+		scr2 += "\n\n";
+
+		return scr2;
+	}
+
+	/* Add SLURM script for CPU partition with MPI */
+
+	if(this.values.partition[0] == "CPU" && this.values.mpirun_true != 0) {
+
+		var scr2 = "\n\nmodule load openmpi3\n"
+		scr2 += "\nsbatch";
+
+		if(this.inputs.single_node.checked)
+			scr2 += " --node=1";
+
+		if(this.values.num_cores > 0)
+			scr2 += " --ntasks=" + this.values.num_cores;
+
+		if(this.values.partition.length > 0)
+			scr2 += " --partition=qcpu";
+
+		if(this.inputs.mem_per_core.value > 0)
+			scr2 += " --mem=" + this.inputs.mem_per_core.value + this.inputs.mem_units.value;
+
+		if(this.inputs.wallhours.value > 0)
+			scr2 += " --time=" + this.inputs.wallhours.value + ":" + this.inputs.wallmins.value + ":" + this.inputs.wallsecs.value;
+
+		if(this.inputs.job_name.value != "")
+			scr2 += " --job-name=" + this.inputs.job_name.value;
+
+		if(this.inputs.chdir.value != "")
+			scr2 += " --chdir=\"" + this.inputs.chdir.value + "\"";
+
+		scr2 += " --wrap=\"mpirun -np " + this.values.num_cores + " INSERT PATH TO YOUR PROGRAMS HERE\"";
+		scr2 += "\n\n";
+
+		return scr2;
+	}
+}
+
 
 function stackTrace() {
     var err = new Error();
@@ -439,26 +931,42 @@ VISTECScriptGen.prototype.init = function() {
 	this.inputDiv.id = "vistec_sg_input_container";
 	this.containerDiv.appendChild(this.inputDiv);
 
+	this.jobNotesDiv = document.createElement("div");
+	this.jobNotesDiv.id = "vistec_sg_jobnotes";
+	this.containerDiv.appendChild(this.jobNotesDiv);
+	
 	var scriptHeader = document.createElement("h1");
 	scriptHeader.id = "vistec_sg_script_header";
-	scriptHeader.appendChild(document.createTextNode("Job Script"));
+	scriptHeader.appendChild(document.createTextNode("Script for Batch Submission of Serial Jobs"));
 	this.containerDiv.appendChild(scriptHeader);
 
 	this.form = this.createForm();
 	this.inputDiv.appendChild(this.form);
 
-	this.jobNotesDiv = document.createElement("div");
-	this.jobNotesDiv.id = "vistec_sg_jobnotes";
-	this.containerDiv.appendChild(this.jobNotesDiv);
-
 	this.jobScriptDiv = document.createElement("div");
 	this.jobScriptDiv.id = "vistec_sg_jobscript";
 	this.containerDiv.appendChild(this.jobScriptDiv);
+
+
+	this.inputDiv2 = document.createElement("div");
+	this.inputDiv2.id = "vistec_sg_input_container2";
+	this.containerDiv2.appendChild(this.inputDiv2);
+
+	var scriptHeader2 = document.createElement("h1");
+	scriptHeader2.id = "vistec_sg_script_header2";
+	scriptHeader2.appendChild(document.createTextNode("Script for Batch Submission of Single Job"));
+	this.containerDiv2.appendChild(scriptHeader2);
+
+	this.jobScriptDiv2 = document.createElement("div");
+	this.jobScriptDiv2.id = "vistec_sg_jobscript2";
+	this.containerDiv2.appendChild(this.jobScriptDiv2);
 
 	this.updateJobscript();
 };
 
 VISTECScriptGen.prototype.toJobScript = function() {
-	scr = this.generateScriptPBS();	
+	scr = this.generateScriptSLURM();		
 	this.jobScriptDiv.innerHTML = "<pre>" + scr + "</pre>";
+	scr2 = this.generateScriptSLURM2();
+	this.jobScriptDiv2.innerHTML = "<pre>" + scr2 + "</pre>";
 };
